@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import asyncio
 import datetime
 import fnmatch
@@ -178,7 +179,7 @@ class CoreApp:
     ) -> int:
         path = events_file(run_id)
         if not path.exists():
-            for candidate in Path("~/.kama/sessions").expanduser().glob(
+            for candidate in Path("./.kama/sessions").expanduser().glob(
                 f"*/runs/{run_id}/events.jsonl"
             ):
                 path = candidate
@@ -230,7 +231,7 @@ class CoreApp:
 
         self._broadcaster = IpcEventBroadcaster(trace=self._trace)
         self._bus.subscribe(self._broadcaster.handle)
-        sessions_root = Path("~/.kama/sessions").expanduser()
+        sessions_root = Path("./.kama/sessions").expanduser()
         store = SessionStore(sessions_root)
         assert self._config is not None
         compact_provider = AnthropicProvider(self._config.llm.default_model)
@@ -275,8 +276,14 @@ class CoreApp:
 
         loop = asyncio.get_running_loop()
         shutdown = asyncio.Event()
-        loop.add_signal_handler(signal.SIGINT, shutdown.set)
-        loop.add_signal_handler(signal.SIGTERM, shutdown.set)
+        # 仅在非 Windows 平台上添加信号处理器
+        if sys.platform != "win32":
+            loop.add_signal_handler(signal.SIGINT, shutdown.set)
+            loop.add_signal_handler(signal.SIGTERM, shutdown.set)
+        else:
+            # Windows 下可以用其他的方式捕获 Ctrl+C，例如：
+            # 使用 asyncio 的键盘中断异常，或者直接依赖 try/except KeyboardInterrupt
+            pass
 
         await shutdown.wait()
 
